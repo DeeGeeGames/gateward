@@ -1,4 +1,5 @@
 import { createBackdrop } from './backdrop';
+import { createDeepSpace } from './deep-space';
 import { createConvoyCraft } from './convoy-craft';
 import { OPERATIONS } from './operations';
 import { MIN_CAMERA_ZOOM } from './combat-scale';
@@ -52,9 +53,11 @@ const visible = function (object: Object3D): boolean {
 
 export const createPresentation = async function (canvas: HTMLCanvasElement): Promise<Presentation> {
 	const scene = new Scene();
+	const deepSpace = createDeepSpace();
 	const carrier = new Group(); scene.add(carrier);
 	const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 	renderer.setClearColor('#070e17');
+	renderer.autoClear = false;
 	renderer.outputColorSpace = SRGBColorSpace;
 	renderer.toneMapping = ACESFilmicToneMapping;
 	renderer.toneMappingExposure = 1.1;
@@ -101,6 +104,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 		controls.dispose();
 		trajectories.clear();
 		scene.traverse(function (object) { if (object instanceof DirectionalLight) object.shadow.dispose(); if (object instanceof InstancedMesh) object.dispose(); });
+		disposeObject(deepSpace.scene); deepSpace.scene.clear();
 		disposeObject(scene);
 		scene.clear();
 		renderer.dispose();
@@ -437,9 +441,11 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			gate.visible = journey.remaining <= 1100; gate.position.set(state.routeOrigin.x + state.systems.routeLength, 25, state.routeOrigin.y);
 			for (const [index, beacon] of beacons.entries()) { const at = beaconFor(index, state); beacon.position.set(at.x, 0, at.y); beacon.visible = !cinematic && Math.abs(at.x - state.ark.x) <= 1100; }
 			course.visible = !cinematic;
-			updateBackdrop(state, view, reducedMotion, cinematic);
+			updateBackdrop(state, view, cinematic);
 			overlay.hidden = cinematic;
-			scene.updateMatrixWorld(true); updateVisibility(state); renderer.render(scene, view.camera); if (!cinematic) drawLabels(state, selected, selectedSlot);
+			scene.updateMatrixWorld(true); updateVisibility(state); deepSpace.update(view);
+			renderer.clear(); renderer.render(deepSpace.scene, deepSpace.camera); renderer.clearDepth();
+			renderer.render(scene, view.camera); if (!cinematic) drawLabels(state, selected, selectedSlot);
 		},
 		orbitCamera: function (horizontal, vertical, zoom, deltaSeconds) {
 			if (disposed || cinematicView) return;
