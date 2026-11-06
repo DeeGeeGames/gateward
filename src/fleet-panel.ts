@@ -3,7 +3,7 @@ import type { State } from './simulation';
 
 export const createFleetPanel = function (root: HTMLElement, getState: () => State, active: () => boolean, getFocus: () => FleetFocus, focus: (id: FleetFocus) => void, signal: AbortSignal) {
 	const status = document.createElement('p'); status.className = 'note'; status.setAttribute('role', 'status');
-	const help = document.createElement('p'); help.className = 'note'; help.textContent = 'Follow any ship while keeping your orbit and zoom. Docked fighters follow the ark until launch. If a ship is lost, the view returns to the ark.';
+	const help = document.createElement('p'); help.className = 'note'; help.textContent = 'Click a ship or its turret to follow it, or select it here. Your orbit and zoom stay the same. Docked fighters follow the ark until launch. If a ship is lost, the view returns to the ark.';
 	const list = document.createElement('div'); list.className = 'fleet-list'; list.setAttribute('aria-label', 'Focus fleet ship');
 	root.append(status, help, list);
 	const rows = new Map<FleetFocus, { control: HTMLButtonElement; name: HTMLElement; detail: HTMLElement }>();

@@ -39,7 +39,12 @@ export const createContextActions = function (root: HTMLElement, commands: Comma
 	const select = function (next: Target) {
 		target = next; moving = undefined;
 		if (next.kind === 'mount') commands.mount(next.index);
-		if (next.kind === 'slot') commands.slot(next.slot);
+		if (next.kind === 'slot') {
+			commands.slot(next.slot);
+			const platform = commands.state().convoy?.platforms.find(function (ship) { return ship.slot === next.slot; });
+			if (platform) commands.follow(`platform:${platform.id}`);
+		}
+		if (next.kind === 'fleet') commands.follow(next.id);
 	};
 	const update = function () {
 		if (!target || !commands.active()) { close(); return; }
@@ -87,7 +92,6 @@ export const createContextActions = function (root: HTMLElement, commands: Comma
 				description = moving === platform.id ? 'Select another ring position to move or swap. Escape cancels.' : `P${platform.id + 1} ${HULLS[platform.hull].name} · ${Math.ceil(platform.hp)} hull`;
 				for (const [index, mount] of state.mounts.entries()) if (mount.platform === platform.id) add(`fit-${index}`, `Mount ${index + 1} · ${mount.weapon ? WEAPONS[mount.weapon].name : 'Fit weapon'}`, function () { select({ kind: 'mount', index }); }, platform.hp <= 0);
 				add('move', moving === platform.id ? 'Cancel move' : 'Move / swap…', function () { moving = moving === platform.id ? undefined : platform.id; commands.focus(); }, !fitting);
-				add('follow', 'Follow ship', function () { commands.follow(`platform:${platform.id}`); close(); });
 			}
 			add('details', 'Shipyard details', function () { inspect('mounts'); });
 		}
@@ -110,7 +114,6 @@ export const createContextActions = function (root: HTMLElement, commands: Comma
 			}
 			add('scramble', 'Scramble all', function () { commands.order(function () { return scrambleAll(commands.state()); }); }, fitting || state.fightersScrambled || !state.wings.some(function (w) { return w.craft.some(function (c) { return c.hp > 0; }); }));
 			add('recall', 'Recall all', function () { commands.order(function () { return recallAll(commands.state()); }); }, !state.fightersScrambled && !state.wings.some(function (w) { return w.phase === 'launching' || w.phase === 'sortie'; }));
-			add('follow', 'Follow ship', function () { commands.follow(id); close(); });
 			add('details', 'Escort orders', function () { inspect('escorts'); });
 		}
 		if (!title) { close(); return; }

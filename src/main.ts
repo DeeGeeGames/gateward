@@ -179,6 +179,7 @@ const shutdown = await mountGame('game', async function (container) {
 	const selectMount = function (index: number) {
 		selected = index;
 		const mount = state.mounts[index];
+		if (mount) focusShip(mount.platform === undefined ? 'ark' : `platform:${mount.platform}`);
 		const platform = state.convoy?.platforms.find(function (platform) { return platform.id === mount?.platform; });
 		if (platform) shipyard.select(platform.slot);
 	};
