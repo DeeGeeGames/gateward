@@ -67,9 +67,13 @@ choices remain useful. Balance and feel are provisional.
 
 ## Controls and secondary systems
 
-Mouse/touch: use Fit to select mounts, buy/sell/upgrade, choose formation and
-launch. Left-drag, right-drag or touch-drag orbits; wheel or pinch zooms. Reset view restores
-the camera. Keyboard: Tab/Shift-Tab and Enter operate every build and formation
+Mouse/touch: click a ship or turret to follow its ship; turret clicks still open
+the fitting actions. Focus changes ease across while preserving orbit and zoom;
+reduced motion skips the transition. Fleet also selects ships by keyboard or
+controller, including docked fighters. Use Fit to select mounts, buy/sell/upgrade,
+choose formation and launch. Left-drag, right-drag or touch-drag orbits; wheel or
+pinch zooms. Reset view restores the camera and follows the ark.
+Keyboard: Tab/Shift-Tab and Enter operate every build and formation
 control; 1–8 select ark mounts. All twelve mounts have accessible named buttons.
 Space pauses; Escape cancels placement, closes the drawer, then pauses.
 T opens radar; C opens escort coverage; Q activates Aegis; E assigns/releases a

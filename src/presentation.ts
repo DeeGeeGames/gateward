@@ -23,6 +23,7 @@ import { INTERDICTION_CONFIG } from './interdiction';
 import { mountWorld, worldPoint } from './space';
 import { drawTacticalRing } from './tactical-ring';
 import { focusedShip, type FleetFocus } from './fleet-focus';
+import { createFleetCamera } from './fleet-camera';
 
 type PickTarget = { kind: 'mount'; index: number } | { kind: 'enemy'; id: number } | { kind: 'fleet'; id: FleetFocus };
 export interface PickResult { mount: number; enemy: Enemy | undefined; world: Point | undefined; slot?: Formation; fleet?: FleetFocus }
@@ -219,12 +220,15 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 		course.position.set(state.routeOrigin.x, 0, state.routeOrigin.y); course.computeLineDistances();
 	};
 	const cameraAnchor = new Vector3();
+	const fleetCamera = createFleetCamera();
+	let cameraTime = performance.now();
 	let focus: FleetFocus = 'ark';
 	let carrierAngle = 0;
 	let cinematicView = false;
-	const followFleet = function (state: State) {
+	const followFleet = function (state: State, reducedMotion: boolean) {
+		const now = performance.now(); const delta = Math.min(0.1, (now - cameraTime) / 1000); cameraTime = now;
 		const ship = focusedShip(state, focus); focus = ship.id;
-		const anchor = new Vector3(ship.point.x, ship.elevation, ship.point.y);
+		const anchor = fleetCamera.update(ship, delta, reducedMotion);
 		if (!cameraAnchor.equals(anchor)) {
 			view.camera.position.add(anchor.clone().sub(cameraAnchor));
 			controls.target.copy(anchor); cameraAnchor.copy(anchor); labelsDirty = true;
@@ -348,7 +352,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			if (cinematic !== cinematicView) {
 				cinematicView = cinematic;
 				controls.disconnect(); controls.connect(canvas); controls.reset();
-				focus = 'ark'; cameraAnchor.set(0, 0, 0); labelsDirty = true;
+				focus = 'ark'; cameraAnchor.set(0, 0, 0); fleetCamera.reset(); cameraTime = performance.now(); labelsDirty = true;
 				if (cinematic) { controls.rotateUp(controls.getPolarAngle() - 1.08); controls.update(); }
 			}
 			if (cinematic) {
@@ -360,7 +364,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			if (view.camera.view?.offsetX !== screenOffsetX) {
 				view.camera.setViewOffset(view.width, view.height, screenOffsetX, screenOffsetY - view.height * 0.02, view.width, view.height); labelsDirty = true;
 			}
-			followFleet(state); updateRoute(state); controls.enabled = controlsEnabled && !cinematic; controls.update();
+			followFleet(state, reducedMotion); updateRoute(state); controls.enabled = controlsEnabled && !cinematic; controls.update();
 			syncFleet(state);
 			formation.visible = !cinematic && !!state.convoy && state.status === 'fitting';
 			for (const { slot, marker } of slotMarkers) {
@@ -459,7 +463,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			controls.update(); labelsDirty = true;
 		},
 		pick: function (point, state) {
-			resize(); followFleet(state); controls.update(); scene.updateMatrixWorld(true); updateVisibility(state);
+			resize(); controls.update(); scene.updateMatrixWorld(true); updateVisibility(state);
 			const roots = [...arkRoots(), ...escortModels.values(), ...enemyModels.values(), ...detectedMarkers.values()];
 			const direct = hit(point, roots);
 			let mount = direct?.kind === 'mount' ? direct.index : -1;
@@ -476,7 +480,10 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			return { mount, enemy, world: toWorld(point, view), ...(slot === undefined ? {} : { slot }), ...(fleet === undefined ? {} : { fleet }) };
 		},
 		placementPoint: function (point) { resize(); return toWorld(point, view, FLIGHT_HEIGHT); },
-		resetCamera: function () { focus = 'ark'; controls.reset(); cameraAnchor.set(0, 0, 0); labelsDirty = true; },
+		resetCamera: function () {
+			focus = 'ark'; controls.reset();
+			view.camera.position.add(cameraAnchor); controls.target.copy(cameraAnchor); controls.update(); labelsDirty = true;
+		},
 		focusShip: function (id) { focus = id; },
 		getFocus: function () { return focus; },
 		cancelInteraction: function () { controls.disconnect(); controls.connect(canvas); },
