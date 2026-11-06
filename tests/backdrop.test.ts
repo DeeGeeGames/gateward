@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { InstancedMesh, LineSegments, Matrix4, Points, Scene, Vector3 } from 'three';
+import { InstancedMesh, LineSegments, Matrix4, Scene, Vector3 } from 'three';
 import { createBackdrop, rockAt } from '../src/backdrop';
 import { MIN_CAMERA_ZOOM } from '../src/combat-scale';
 import { offsetView, toWorld, viewFor } from '../src/projection';
@@ -27,13 +27,6 @@ for (const [width, height] of [[1440, 900], [390, 844]] as const) test(`backdrop
 		const rocks = scene.children.find(function (child) { return child instanceof InstancedMesh; });
 		if (!(rocks instanceof InstancedMesh)) throw new Error('Missing asteroids');
 		expect(rocks.count).toBeGreaterThan(0); expect(rocks.count).toBeLessThan(3000);
-		for (const stars of scene.children.filter(function (child) { return child instanceof Points; })) {
-			const positions = stars.geometry.getAttribute('position');
-			const projected = Array.from({ length: positions.count }, function (_, index) { return new Vector3().fromBufferAttribute(positions, index).applyMatrix4(stars.matrixWorld).project(camera); });
-			for (const point of projected) { expect(point.z).toBeGreaterThan(-1); expect(point.z).toBeLessThan(1); }
-			// Each viewport quadrant remains populated after zoom/orbit/overlay changes.
-			for (const x of [-1, 1]) for (const y of [-1, 1]) expect(projected.some(function (point) { return point.x * x > 0 && point.x * x < 1 && point.y * y > 0 && point.y * y < 1; })).toBe(true);
-		}
 	}
 });
 
@@ -42,13 +35,8 @@ test('asteroid cells stay anchored and backdrop updates leave simulation untouch
 	const scene = new Scene(); const update = createBackdrop(scene); const view = viewFor(1440, 900);
 	const rock = rockAt(-3, 7);
 	update(state, view, false);
-	view.camera.zoom = MIN_CAMERA_ZOOM; view.camera.updateProjectionMatrix(); update(state, view, true);
+	view.camera.zoom = MIN_CAMERA_ZOOM; view.camera.updateProjectionMatrix(); update(state, view, false);
 	expect(rockAt(-3, 7)).toEqual(rock); expect(state).toEqual(before);
-	const stars = scene.children.find(function (child) { return child instanceof Points; });
-	if (!(stars instanceof Points)) throw new Error('Missing stars');
-	const positions = Array.from(stars.geometry.getAttribute('position').array);
-	state.systems.distanceTraveled = 1000; update(state, view, true);
-	expect(Array.from(stars.geometry.getAttribute('position').array)).toEqual(positions);
 });
 
 for (const [width, height] of [[1440, 900], [390, 844]] as const) test(`asteroids remain visible at normal, medium and widest zoom in ${width}x${height}`, function () {

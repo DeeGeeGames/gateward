@@ -1,6 +1,5 @@
-import { BufferAttribute, BufferGeometry, IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, MeshStandardMaterial, Object3D, Points, PointsMaterial, Vector3, type Scene } from 'three';
+import { BufferAttribute, BufferGeometry, IcosahedronGeometry, InstancedMesh, LineBasicMaterial, LineSegments, MeshStandardMaterial, Object3D, type Scene } from 'three';
 import { tactical } from './combat-scale';
-import { createDeepSpace } from './deep-space';
 import { toWorld, type View } from './projection';
 import type { Point, State } from './simulation';
 
@@ -33,21 +32,13 @@ export const rockAt = function (x: number, y: number, cell = ROCK_CELL, scale = 
 };
 
 export const createBackdrop = function (scene: Scene) {
-	const updateDeepSpace = createDeepSpace(scene);
 	const navigation = new LineSegments(new BufferGeometry(), new LineBasicMaterial({ color: '#557b83', transparent: true, opacity: 0.075 })); scene.add(navigation);
 	const geometry = new IcosahedronGeometry(1, 1); const material = new MeshStandardMaterial({ color: '#253039', roughness: 1 });
 	let rocks = new InstancedMesh(geometry, material, 1); scene.add(rocks);
 	const transform = new Object3D();
 	let gridSignature = ''; let rockSignature = '';
-	const stars = [0.08, 0.2, 0.46].map(function (parallax, layer) {
-		const positions = new Float32Array(100 * 3);
-		const starGeometry = new BufferGeometry(); starGeometry.setAttribute('position', new BufferAttribute(positions, 3));
-		const points = new Points(starGeometry, new PointsMaterial({ color: layer === 2 ? '#b8cbd2' : '#506675', size: layer === 2 ? 1.6 : 1, sizeAttenuation: false, depthWrite: false }));
-		points.frustumCulled = false; scene.add(points); return { points, positions, parallax, layer };
-	});
-	return function (state: State, view: View, reducedMotion: boolean, cinematic = false) {
+	return function (state: State, view: View, cinematic = false) {
 		const origin = state.routeOrigin;
-		updateDeepSpace(view);
 		navigation.visible = !cinematic && state.status === 'fitting';
 		const spacing = gridSpacing(view.camera.zoom); const grid = backdropBounds(view, origin, spacing);
 		const gridKey = `${origin.x}/${origin.y}/${spacing}/${Object.values(grid).join('/')}`;
@@ -83,26 +74,6 @@ export const createBackdrop = function (scene: Scene) {
 				transform.position.set(origin.x + rock.x, ROCK_HEIGHT, origin.y + rock.y); transform.scale.set(rock.radius * 0.9, rock.radius * 0.55, rock.radius * 0.72); transform.rotation.set(rock.angle * 0.4, rock.angle, rock.angle * 0.17); transform.updateMatrix(); rocks.setMatrixAt(index++, transform.matrix);
 			}
 			rocks.count = index; rocks.instanceMatrix.needsUpdate = true; rocks.computeBoundingSphere();
-		}
-		const lower = new Vector3(-1, -1, 0).applyMatrix4(view.camera.projectionMatrixInverse);
-		const upper = new Vector3(1, 1, 0).applyMatrix4(view.camera.projectionMatrixInverse);
-		// Camera-aligned distant layers keep the original screen-space density at
-		// every zoom and orbit instead of revealing the edge of a small star box.
-		for (const { points, positions, parallax, layer } of stars) {
-			points.position.copy(view.camera.position); points.quaternion.copy(view.camera.quaternion);
-			const width = (upper.x - lower.x) * 1.3;
-			const height = (upper.y - lower.y) * 1.3;
-			const drift = reducedMotion ? 0 : state.systems.distanceTraveled * parallax / tactical(3000);
-			for (let i = 0; i < 100; i++) {
-				positions[i * 3] = (fraction(i * 0.17373 + layer * 0.313 - drift) - 0.5) * width + (upper.x + lower.x) / 2;
-				positions[i * 3 + 1] = (fraction(i * 0.9731 + layer * 0.217) - 0.5) * height + (upper.y + lower.y) / 2;
-				// The distant planet occludes stars; keep its silhouette clean.
-				const px = (positions[i * 3] ?? 0) - lower.x - (upper.x - lower.x) * 0.91;
-				const py = (positions[i * 3 + 1] ?? 0) - lower.y - (upper.y - lower.y) * 0.94;
-				if (Math.hypot(px, py) < (upper.y - lower.y) * 0.365) positions[i * 3] = (positions[i * 3] ?? 0) - (upper.x - lower.x) * 0.58;
-				positions[i * 3 + 2] = -view.camera.far * (0.75 + layer * 0.03);
-			}
-			points.geometry.getAttribute('position').needsUpdate = true;
 		}
 	};
 };
