@@ -102,6 +102,15 @@ h1 em { font-style:normal; color:var(--mint); }
 .panel h2 { font-size:32px; letter-spacing:-1px; margin:22px 0; }
 .panel>a { display:block; text-align:center; font-size:13px; margin-top:20px; color:var(--muted); }
 #result-stats { border-top:1px solid var(--line); margin:20px 0; padding-top:20px; font:12px monospace; color:var(--mint); line-height:1.7; white-space:pre-line; }
+#refit-outcome { border-left:3px solid var(--mint); background:#18313b; padding:8px 12px; margin:12px 0; }
+#refit-outcome h3 { color:var(--mint); font-size:14px; margin:0 0 4px; }
+#refit-outcome p { margin:0; font-size:12px; line-height:1.5; }
+#result[data-outcome="intact"] #result-title { color:var(--mint); }
+#refit-outcome[data-outcome="arrivalWithLosses"], .passage-report article[data-outcome="arrivalWithLosses"], #convoy-results>article[data-outcome="arrivalWithLosses"] { border-color:#eebb83; }
+#refit-outcome[data-outcome="arrivalWithLosses"] h3, #result[data-outcome="arrivalWithLosses"] #result-title, article.passage-report[data-outcome="arrivalWithLosses"] h3 { color:#eebb83; }
+#result[data-outcome="arkDestroyed"] #result-title, article.passage-report[data-outcome="arkDestroyed"] h3 { color:#ff9c8f; }
+#convoy-results>article[data-outcome="arkDestroyed"] { border-color:#ff9c8f; }
+.passage-report .passage-takeaway { color:#e2e9d7; }
 #systems-help { margin:18px 0; font-size:13px; color:var(--muted); }
 #systems-help summary { cursor:pointer; min-height:44px; padding:12px 0; }
 .menu-tools { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }

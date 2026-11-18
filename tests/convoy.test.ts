@@ -14,9 +14,12 @@ describe('convoy build and passage lifecycle', function () {
 	test('passage formations begin ahead facing forward and enter mobile attack positions', function () {
 		for (let passage = 0; passage < PASSAGES.length; passage++) {
 			const state = createConvoyState(); state.wave = passage; build(state, 0, 'flak'); launchPassage(state);
-			for (const enemy of state.enemies) {
+			for (const [index, enemy] of state.enemies.entries()) {
+				const scouted = PASSAGES[passage]?.threats[index];
+				if (!scouted) throw new Error('Expected a scouted starting position');
 				expect(enemy.x).toBeGreaterThan(state.ark.x);
-				expect(Math.abs(enemy.y - state.ark.y)).toBeLessThanOrEqual(420);
+				expect(enemy.x - state.ark.x).toBe(scouted.x);
+				expect(enemy.y - state.ark.y).toBe(scouted.y);
 				expect(enemy.flight?.angle).toBeCloseTo(state.ark.angle);
 				expect(enemy.station).toBeUndefined();
 			}

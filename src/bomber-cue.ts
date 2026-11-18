@@ -11,6 +11,15 @@ export const bomberCue = function (state: State, enemy: Enemy): { text: string; 
 	return undefined;
 };
 
+export const defenseHint = function (state: State): string | undefined {
+	if (state.status !== 'running' || state.paused || !state.focused || state.pulseCooldown > 0) return undefined;
+	if (state.shots.some(function (shot) { return shot.side === 'enemy' && shot.life > 0; })) return 'Incoming rounds · Aegis can clear them.';
+	if (state.enemies.some(function (enemy) {
+		return enemy.hp > 0 && enemy.kind === 'bomber' && enemy.bomberAttack?.phase === 'windup' && contactIntel(state, enemy) === 'classified';
+	})) return 'Bomber lining up a shot · Aegis can clear it once fired.';
+	return undefined;
+};
+
 export interface CuePosition { x: number; y: number }
 export const placeBomberCue = function (anchor: CuePosition, width: number, height: number, occupied: readonly CuePosition[]): CuePosition | undefined {
 	const x = Math.max(75, Math.min(width - 75, anchor.x));

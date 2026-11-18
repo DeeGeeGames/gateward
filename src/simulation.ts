@@ -62,15 +62,20 @@ export interface Platform { id: number; slot: Formation; hull: HullKind; hp: num
 export const PASSAGES = KEPLER_PASSAGES;
 export const PASSAGE_SECONDS = 45;
 export const PLATFORM_HP = 240;
-export interface WeaponActivity { mount: number; platform?: number; weapon: Weapon; shots: number; beamSeconds: number }
+export type WeaponIdleReason = 'disabled' | 'offline' | 'unpowered' | 'noContacts' | 'range' | 'arc' | 'turning' | 'reloading';
+type WeaponIdleSeconds = Partial<Record<WeaponIdleReason, number>>;
+export interface WeaponActivity { mount: number; platform?: number; weapon: Weapon; shots: number; beamSeconds: number; idleSeconds?: WeaponIdleSeconds }
 export interface PassageReport {
 	name: string; survived: boolean; hullBefore: number; hullAfter: number; kills: number; salvageEarned: number;
-	disabledPlatforms: number[]; weaponsLost: number; recoveryHull: number; recoverySalvage: number;
+	disabledPlatforms: number[]; escortsLost: number; weaponsLost: number; recoveryHull: number; recoverySalvage: number;
 	support?: RefitSupportReceipt;
 	weaponActivity?: WeaponActivity[];
 }
+export const passageHadLosses = function (report: PassageReport): boolean {
+	return report.disabledPlatforms.length > 0 || report.escortsLost > 0;
+};
 export interface State {
-	convoy?: { operation?: OperationId; doctrine?: DoctrineId; initialFitChanged?: boolean; platforms: Platform[]; elapsed: number; reports?: PassageReport[]; departure?: { hull: number; kills: number; salvageEarned: number; weapons: number; weaponActivity?: WeaponActivity[] } };
+	convoy?: { operation?: OperationId; doctrine?: DoctrineId; initialFitChanged?: boolean; platforms: Platform[]; elapsed: number; reports?: PassageReport[]; departure?: { hull: number; kills: number; escortLosses: number; salvageEarned: number; weapons: number; weaponActivity?: WeaponActivity[] } };
 
 	coverage: EscortCoverage;
 	fightersScrambled: boolean;
@@ -90,13 +95,26 @@ export interface State {
 export const distance = function (a: Point, b: Point): number { return Math.hypot(a.x - b.x, a.y - b.y, (a.z ?? 0) - (b.z ?? 0)); };
 export const MISSILE_SPLASH_RADIUS = tactical(85);
 
+const countIdleTime = function (idle: WeaponIdleSeconds | undefined, reason: WeaponIdleReason, dt: number) {
+	if (idle) idle[reason] = (idle[reason] ?? 0) + dt;
+};
+
 // Scores use only available intel. Range and arc constrain the aim point;
 // detected neighbours outside that mount's arc/range can still take splash.
-export const mountTarget = function (state: State, mount: Mount): Enemy | undefined {
+export const mountTarget = function (state: State, mount: Mount, idle?: WeaponIdleSeconds, dt = 0): Enemy | undefined {
 	const weapon = mount.weapon;
 	if (!weapon) return undefined;
 	const visible = state.enemies.filter(function (enemy) { return enemy.hp > 0 && canAcquire(state, enemy); });
-	const candidates = visible.filter(function (enemy) { return covered(state, mount, enemy); });
+	let inRange = false;
+	const candidates = visible.filter(function (enemy) {
+		const blocked = coverageBlock(state, mount, enemy);
+		inRange ||= blocked !== 'range';
+		return blocked === undefined;
+	});
+	if (candidates.length === 0) {
+		countIdleTime(idle, visible.length === 0 ? 'noContacts' : inRange ? 'arc' : 'range', dt);
+		return undefined;
+	}
 	const priority = candidates.find(function (enemy) { return enemy.id === state.priority; });
 	if (priority) return priority;
 	const score = function (enemy: Enemy): number {
@@ -183,9 +201,9 @@ export const launchPassage = function (state: State): boolean {
 	const convoy = state.convoy; const passage = passagesFor(state)[state.wave];
 	if (!canOrder(state) || state.status !== 'fitting' || !convoy || !passage || !state.mounts.some(function (mount) { return !!mount.weapon; })) return false;
 	const weaponActivity = state.mounts.flatMap(function (mount, index): WeaponActivity[] {
-		return mount.weapon ? [{ mount: index, ...(mount.platform === undefined ? {} : { platform: mount.platform }), weapon: mount.weapon, shots: 0, beamSeconds: 0 }] : [];
+		return mount.weapon ? [{ mount: index, ...(mount.platform === undefined ? {} : { platform: mount.platform }), weapon: mount.weapon, shots: 0, beamSeconds: 0, idleSeconds: {} }] : [];
 	});
-	convoy.departure = { hull: state.hull, kills: state.kills, salvageEarned: 0, weapons: weaponActivity.length, weaponActivity };
+	convoy.departure = { hull: state.hull, kills: state.kills, escortLosses: state.escortLosses, salvageEarned: 0, weapons: weaponActivity.length, weaponActivity };
 	state.status = 'running'; state.wave++; convoy.elapsed = 0; state.cleared = false;
 	for (const threat of passage.threats) {
 		const config = ENEMIES[threat.kind]; const point = worldPoint(state, threat);
@@ -267,11 +285,15 @@ export const coverageFor = function (state: State, mount: Mount) {
 	return { range: mount.weapon ? WEAPONS[mount.weapon].range * (1 + (mount.level - 1) * 0.12) : 0,
 		center: mount.facing ?? (mount.y < 0 ? -Math.PI / 2 : Math.PI / 2), arc: state.coverageDegrees * Math.PI / 180 };
 };
-export const covered = function (state: State, mount: Mount, target: Point): boolean {
+const coverageBlock = function (state: State, mount: Mount, target: Point): 'range' | 'arc' | undefined {
 	const { range, center, arc } = coverageFor(state, mount);
 	const local = localPoint(state, target);
+	if (!(distance({ ...mount, z: mountWorld(state, mount).z ?? 0 }, local) <= range + 1e-8)) return 'range';
 	const angle = Math.atan2(local.y - mount.y, local.x - mount.x) - center;
-	return distance({ ...mount, z: mountWorld(state, mount).z ?? 0 }, local) <= range + 1e-8 && Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle))) <= arc / 2 + 1e-8;
+	return Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle))) <= arc / 2 + 1e-8 ? undefined : 'arc';
+};
+export const covered = function (state: State, mount: Mount, target: Point): boolean {
+	return coverageBlock(state, mount, target) === undefined;
 };
 export const invested = function (mount: Mount): number {
 	return mount.weapon ? WEAPONS[mount.weapon].cost + (mount.level >= 2 ? Math.round(WEAPONS[mount.weapon].cost * 0.8) : 0) + (mount.level >= 3 ? Math.round(WEAPONS[mount.weapon].cost * 1.2) : 0) : 0;
@@ -511,7 +533,7 @@ export const contactWarning = function (state: State): string {
 	if (!contact) return 'Scanning for contacts';
 	if (contactIntel(state, contact) === 'detected') return `${contactDirection(localPoint(state, contact))} · unclassified contact`;
 	const count = contacts.filter(function (enemy) { return enemy.kind === contact.kind && contactDirection(localPoint(state, enemy)) === contactDirection(localPoint(state, contact)) && contactIntel(state, enemy) === 'classified'; }).length;
-	return `${contactDirection(localPoint(state, contact))} · ${count} ${contact.kind} · in range`;
+	return `${contactDirection(localPoint(state, contact))} · ${count} ${contact.kind} · identified`;
 };
 const effect = function (state: State, point: Point, radius: number, color: string, sourceShot?: Shot) {
 	state.effects.push({ x: point.x, y: point.y, ...(point.z === undefined ? {} : { z: point.z }), radius, life: 0.45, maxLife: 0.45, color, ...(sourceShot ? { sourceShot: { ...sourceShot } } : {}) });
@@ -615,13 +637,26 @@ export const step = function (state: State, dt: number) {
 	// Beam tracks last exactly one simulation tick; damage is applied directly.
 	state.shots = state.shots.filter(function (shot) { return shot.weapon !== 'beam'; });
 	const baseWeaponRate = powerOutputs(state.systems.allocation).weaponRate;
+	const weaponActivity = state.convoy?.departure?.weaponActivity;
 	for (const [mountIndex, mount] of state.mounts.entries()) {
-		const weaponRate = baseWeaponRate * conditionMultiplier(mount.integrity);
+		const condition = conditionMultiplier(mount.integrity);
+		const weaponRate = baseWeaponRate * condition;
 		mount.cooldown = Math.max(0, mount.cooldown - dt * weaponRate);
-		if (!mount.weapon || weaponRate === 0 || (mount.platform !== undefined && !state.convoy?.platforms.some(function (platform) { return platform.id === mount.platform && platform.hp > 0; }))) continue;
+		const activity = weaponActivity?.find(function (entry) { return entry.mount === mountIndex; });
+		const idle = activity?.idleSeconds;
+		if (!mount.weapon && !activity) continue;
+		if (mount.platform !== undefined && !state.convoy?.platforms.some(function (platform) { return platform.id === mount.platform && platform.hp > 0; })) {
+			countIdleTime(idle, 'disabled', dt);
+			continue;
+		}
+		if (!mount.weapon) continue;
+		if (weaponRate === 0) {
+			countIdleTime(idle, condition === 0 ? 'offline' : 'unpowered', dt);
+			continue;
+		}
 		const config = WEAPONS[mount.weapon];
 		const origin = mountWorld(state, mount);
-		const target = mountTarget(state, mount);
+		const target = mountTarget(state, mount, idle, dt);
 		if (!target) continue;
 		// Track the firing solution even while reloading; barrels must finish turning before firing.
 		const targetVelocity = flightVelocity(target.flight);
@@ -630,8 +665,10 @@ export const step = function (state: State, dt: number) {
 		const error = Math.atan2(Math.sin(desired - mount.aim), Math.cos(desired - mount.aim));
 		const travel = config.rotationSpeed * dt;
 		mount.aim += Math.max(-travel, Math.min(travel, error));
-		if (Math.abs(error) > travel) continue;
-		const activity = state.convoy?.departure?.weaponActivity?.find(function (entry) { return entry.mount === mountIndex; });
+		if (Math.abs(error) > travel) {
+			countIdleTime(idle, 'turning', dt);
+			continue;
+		}
 		if (mount.weapon === 'beam') {
 			const damage = config.damage * dt * weaponRate * (1 + (mount.level - 1) * 0.55) * (1 + (mount.level - 1) * 0.12);
 			damageEnemy(target, damage, 'beam');
@@ -645,7 +682,7 @@ export const step = function (state: State, dt: number) {
 			if (activity) activity.shots++;
 			mount.cooldown = config.reload / (1 + (mount.level - 1) * 0.12);
 			state.effects.push({ ...origin, radius: 1, life: 0.18, maxLife: 0.18, color: '#ffffff', feedback: { kind: 'muzzle', mount: mountIndex, weapon: mount.weapon, aim: mount.aim } });
-		}
+		} else countIdleTime(idle, 'reloading', dt);
 	}
 	updateWings(state, dt);
 	updateEscortCoverage(state);
@@ -829,9 +866,10 @@ export const step = function (state: State, dt: number) {
 			name: passagesFor(state)[state.wave - 1]?.name ?? 'Passage', survived,
 			hullBefore: departure.hull, hullAfter: state.hull,
 			kills: state.kills - departure.kills, salvageEarned: departure.salvageEarned,
+			escortsLost: state.escortLosses - departure.escortLosses,
 			disabledPlatforms: convoy.platforms.filter(function (platform) { return platform.hp <= 0; }).map(function (platform) { return platform.id; }),
 			weaponsLost: departure.weapons - state.mounts.filter(function (mount) { return !!mount.weapon; }).length,
-			...(departure.weaponActivity ? { weaponActivity: departure.weaponActivity.map(function (entry) { return { ...entry }; }) } : {}),
+			...(departure.weaponActivity ? { weaponActivity: departure.weaponActivity.map(function (entry) { return { ...entry, ...(entry.idleSeconds ? { idleSeconds: { ...entry.idleSeconds } } : {}) }; }) } : {}),
 			recoveryHull: recovering ? Math.min(120, MAX_HULL - state.hull) : 0, recoverySalvage: recovering ? 200 : 0,
 		};
 		convoy.reports = [...(convoy.reports ?? []), report];
@@ -846,7 +884,9 @@ export const step = function (state: State, dt: number) {
 			for (const platform of state.convoy.platforms) platform.hp = HULLS[platform.hull].hp;
 			for (const mount of state.mounts) mount.integrity = 100;
 			for (const id of ['engines', 'sensors', 'generator'] as const) state.systems[id].integrity = 100;
-			state.repairs = {}; notify(state, 'Passage survived. +200 salvage, +120 hull; equipment and platform chassis restored. Scout and launch when ready.');
+			state.repairs = {};
+			const report = state.convoy.reports?.at(-1);
+			notify(state, report && passageHadLosses(report) ? 'Passage cleared with losses. Check the debrief before refitting.' : 'Passage cleared intact. Check the debrief before refitting.');
 		}
 	}
 	else if (!state.convoy && state.systems.distanceTraveled >= state.systems.routeLength) { state.status = 'won'; state.resultReason = 'arrival'; state.shots = []; }

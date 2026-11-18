@@ -13,7 +13,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createEnemy, createEscort, createTurret, disposeObject, type TurretVisual } from './actors-3d';
 import { DECK_HEIGHT, edgeIndicator, FLIGHT_HEIGHT, mountHeight, offsetView, pickEnemy, pickMount, resizeView, toScreen, toWorld, TURRET_HEIGHT, viewFor, type View } from './projection';
 import { beaconFor, CRUISE_SPEED, journeyFor } from './journey';
-import { createConvoyState, coverageFor, ESCORTS, interdictionReason, type Enemy, type Point, type State } from './simulation';
+import { createConvoyState, coverageFor, ESCORTS, interdictionReason, passagesFor, type Enemy, type Point, type State } from './simulation';
 import { SHIELD_CENTER, SHIELD_RADII } from './ship-config';
 import { createTrajectory, projectileHeight, type Trajectory } from './projectiles-3d';
 import { shieldAppearance } from './shield-view';
@@ -22,6 +22,7 @@ import { enemyVisibility } from './enemy-visibility';
 import { INTERDICTION_CONFIG } from './interdiction';
 import { mountWorld, worldPoint } from './space';
 import { drawTacticalRing } from './tactical-ring';
+import { drawScoutPositions } from './scout-overlay';
 import { focusedShip, type FleetFocus } from './fleet-focus';
 import { createFleetCamera } from './fleet-camera';
 
@@ -225,6 +226,16 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 	let focus: FleetFocus = 'ark';
 	let carrierAngle = 0;
 	let cinematicView = false;
+	let fittingView = false;
+	let scoutZoom = 0.28;
+	const frameScout = function (angle: number) {
+		// Look along the route from astern to give both flanks the same room.
+		controls.rotateLeft(controls.getAzimuthalAngle() + Math.PI / 2 + angle);
+		view.camera.zoom = scoutZoom;
+		view.camera.updateProjectionMatrix();
+		controls.update();
+		labelsDirty = true;
+	};
 	const followFleet = function (state: State, reducedMotion: boolean) {
 		const now = performance.now(); const delta = Math.min(0.1, (now - cameraTime) / 1000); cameraTime = now;
 		const ship = focusedShip(state, focus); focus = ship.id;
@@ -307,6 +318,8 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 				ctx.fillStyle = health < 0.35 ? '#efaa7b' : '#91ccc4'; ctx.fillRect(at.x - 22, at.y + 5, 44 * health, 3);
 			}
 		}
+		const scouted = state.status === 'fitting' && state.convoy ? passagesFor(state)[state.wave] : undefined;
+		if (scouted) drawScoutPositions(ctx, scouted, state, view);
 		const cuePositions: Point[] = [];
 		const cues: { text: string; progress: number; color: string; point: Point; anchor: Point }[] = [];
 		for (const enemy of state.enemies) {
@@ -360,6 +373,31 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 				screenOffsetX = view.width < 650 ? 0 : -view.width * 0.07;
 				screenOffsetY = -view.height * 0.12;
 			}
+			const fitting = !cinematic && !!state.convoy && state.status === 'fitting';
+			const usingScoutZoom = fittingView && view.camera.zoom === scoutZoom;
+			if (fitting) {
+				if (view.width <= 600 && view.height > 500) screenOffsetX = Math.max(screenOffsetX, 22);
+				if (view.height <= 500) screenOffsetY -= 48;
+				const passage = passagesFor(state)[state.wave];
+				const flank = passage?.threats.reduce(function (furthest, threat) { return Math.max(furthest, Math.abs(threat.y)); }, 1) ?? 1;
+				const pixelsPerUnit = view.width / (view.camera.right - view.camera.left);
+				const fieldRadius = Math.max(1, view.width / 2 - screenOffsetX - 14);
+				const usualZoom = view.width < 1100 || view.height <= 500 ? 0.18 : 0.22;
+				scoutZoom = Math.min(usualZoom, fieldRadius / (flank * pixelsPerUnit));
+				controls.minZoom = Math.min(MIN_CAMERA_ZOOM, scoutZoom);
+				if (!fittingView) { focus = 'ark'; frameScout(state.ark.angle); }
+				else if (usingScoutZoom && view.camera.zoom !== scoutZoom) {
+					view.camera.zoom = scoutZoom; view.camera.updateProjectionMatrix(); labelsDirty = true;
+				}
+			} else {
+				controls.minZoom = MIN_CAMERA_ZOOM;
+			}
+			if (state.status === 'running' && fittingView) {
+				view.camera.zoom = usingScoutZoom ? 0.28 : Math.max(MIN_CAMERA_ZOOM, view.camera.zoom);
+				view.camera.updateProjectionMatrix();
+				labelsDirty = true;
+			}
+			fittingView = fitting;
 			if (offsetView(view, screenOffsetY)) labelsDirty = true;
 			if (view.camera.view?.offsetX !== screenOffsetX) {
 				view.camera.setViewOffset(view.width, view.height, screenOffsetX, screenOffsetY - view.height * 0.02, view.width, view.height); labelsDirty = true;
@@ -402,6 +440,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 			energyShield.material.opacity = shieldView.energyOpacity; energyShield.material.color.set(shieldView.energyColor);
 			const mount = state.mounts[selected];
 			range.visible = !cinematic && !!mount?.weapon;
+			range.material.opacity = fitting ? 0.72 : 0.22;
 			if (mount?.weapon) {
 				const coverage = coverageFor(state, mount); const signature = `${selected}/${coverage.range}/${coverage.arc}/${coverage.center}`;
 				if (signature !== coverageSignature) {
@@ -483,6 +522,7 @@ export const createPresentation = async function (canvas: HTMLCanvasElement): Pr
 		resetCamera: function () {
 			focus = 'ark'; controls.reset();
 			view.camera.position.add(cameraAnchor); controls.target.copy(cameraAnchor); controls.update(); labelsDirty = true;
+			if (fittingView) frameScout(carrierAngle);
 		},
 		focusShip: function (id) { focus = id; },
 		getFocus: function () { return focus; },

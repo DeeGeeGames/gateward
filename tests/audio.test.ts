@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createSoundObserver } from '../src/audio-events';
-import { build, createState, pulse, repair, step } from '../src/simulation';
+import { build, createConvoyState, createState, pulse, repair, step } from '../src/simulation';
 
 test('audio observes real orders once and resets across voyages', function () {
 	const read = createSoundObserver(); const state = createState();
@@ -14,6 +14,26 @@ test('audio observes real orders once and resets across voyages', function () {
 	repair(state); expect(read(state)).toEqual([]); // Assignment does not replay an instant-repair cue.
 	state.status = 'lost'; expect(read(state)).toEqual(['lost']);
 	expect(read(createState())).toEqual([]);
+});
+
+test('completion sounds distinguish earlier convoy losses, intact arrival and destruction', function () {
+	const convoy = createConvoyState();
+	if (!convoy.convoy) throw new Error('Expected convoy');
+	const cleanReport = { name: 'Final passage', survived: true, hullBefore: 100, hullAfter: 100, kills: 0, salvageEarned: 0, disabledPlatforms: [], escortsLost: 0, weaponsLost: 0, recoveryHull: 0, recoverySalvage: 0 };
+	convoy.convoy.reports = [{ ...cleanReport, name: 'Earlier passage', disabledPlatforms: [0] }, cleanReport];
+	const cases = [
+		[convoy, 'won', 'arrivalWithLosses'],
+		[convoy, 'lost', 'lost'],
+		[createConvoyState(), 'won', 'won'],
+		[createState(), 'won', 'won'],
+	] as const;
+	for (const [state, status, sound] of cases) {
+		const read = createSoundObserver();
+		state.status = 'running'; read(state);
+		state.status = status;
+		expect(read(state)).toEqual([sound]);
+		expect(read(state)).toEqual([]);
+	}
 });
 
 test('combat sounds are deduplicated and paused simulation produces no new cues', function () {

@@ -16,9 +16,9 @@ spawn until explicit launch.
 
 The default **Kepler** operation has three **45-second** combat passages:
 
-1. Port battery: one armored ship and three fighters entering ahead.
-2. Crossfire: two starboard armored ships and three port bombers.
-3. Gate approach: a flagship, armored escort, four bombers and two fighters.
+1. **Port battery** introduces forward and flank coverage against port armor and a wide fighter screen.
+2. **Crossfire** brings three bombers to port and two armored ships to starboard. Players can shift a frigate toward the bombers or invest in the ark’s broadside guns.
+3. **Gate approach** brings a flagship, armored escort, four bombers and two fighters.
 
 Defenders enter in forward formations; capital ships maneuver into attack positions while fighters and bombers intercept the convoy.
 The convoy automatically travels the 5.76 km route at a fixed cruise speed
@@ -26,8 +26,9 @@ The convoy automatically travels the 5.76 km route at a fixed cruise speed
 shields and subsystem damage retain their existing combat effects. Passage
 completion depends on surviving the bounded travel period, not killing every
 hostile. Survivors and projectiles are left behind at the exit. The next defense
-never deploys during fitting. The final passage wins on arrival; zero hull loses,
-including when destruction coincides with an exit.
+never deploys during fitting. A disabled convoy ship or a lost escort at any
+point makes the crossing an arrival with losses, even if a refit restores the
+chassis. Zero ark hull ends the crossing, including at the exit.
 
 After each non-final passage, gain **200 salvage and 120 hull** (capped at 1200).
 All mounts, engine, sensors and generator regain full integrity; platform chassis
@@ -68,7 +69,8 @@ choices remain useful. Balance and feel are provisional.
 ## Controls and secondary systems
 
 Mouse/touch: click a ship or turret to follow its ship; turret clicks still open
-the fitting actions. Focus changes ease across while preserving orbit and zoom;
+the fitting actions. Selecting a mount in the Fit drawer keeps the scout view in place.
+Focus changes ease across while preserving orbit and zoom;
 reduced motion skips the transition. Fleet also selects ships by keyboard or
 controller, including docked fighters. Use Fit to select mounts, buy/sell/upgrade,
 choose formation and launch. Left-drag, right-drag or touch-drag orbits; wheel or
@@ -90,6 +92,10 @@ Escorts, radar coverage, reactor transfers, shields, repair crews, priority
 selection, Aegis and interdiction remain optional tools in their existing drawers.
 The core convoy automatically travels and fires without these orders. Four crews
 can repair ark hull/equipment during combat; they cannot repair platform hull.
+When the last hostile, incoming formation and projectile have cleared, **Cruise
+to exit** accelerates the remaining passage. Press **V** or select the command
+to start or stop cruising. Repairs, recharge and travel continue to use normal
+simulation ticks, and the next passage starts at the player's chosen speed.
 Pause, hidden document and focus loss suspend combat; restart and results keep
 the existing lifecycle behavior. Sound, fullscreen and 2× speed remain in Menu.
 
@@ -124,10 +130,11 @@ columns and bomber corridors; Iron Crossing has six over 11.52 km and ends with
 two flagships. Every operation starts with the same budget and blank fleet.
 Cruise speed, 45-second combat passages and refit rules remain consistent.
 
-All operations are available immediately. Successful crossings and best surviving
-ark hull are stored per operation on the current device using the
-`gateward.operation.v1.*` namespace. These are completion records, not mid-run
-saves. Missing, corrupt or unavailable storage does not prevent play. Retry keeps
+All operations are available immediately. Each operation records intact arrivals,
+arrivals with losses, destroyed arks and best surviving ark hull on the current
+device using the `gateward.operation.v1.*` namespace. Earlier records retain
+their arrival totals and best hull. Those arrivals have unknown loss history.
+Missing, corrupt or unavailable storage does not prevent play. Retry keeps
 the chosen operation; the results screen also returns to operation selection.
 
 ## Demo presentation and first crossing
@@ -137,19 +144,20 @@ that operation's normal 650 salvage budget: Balanced screen (505), Iron broadsid
 (610), and Forward spearhead (590). Custom starts with the original blank convoy.
 A doctrine is only applied to an untouched initial fitting state; it cannot
 silently replace a customized build. Every purchased weapon retains normal full
-refit refunds. Scouting diagrams show the authored approach and threat counts,
-while readiness and route markers connect fitting to the next engagement.
+refit refunds. During fitting, scout symbols mark enemy starting positions on
+the battlefield beside the selected gun's firing arc. They rotate with the view.
+The scout names the incoming threats and suggests a formation or fitting choice.
 
 Each surviving nonfinal passage also offers **one optional support package**:
 up to 100 additional ark hull, 80 additional salvage, or a full shield recharge.
 This is in addition to the existing 200 salvage/120 hull refit supplies. A choice
 is available only during that refit and expires on launch. Full hull/shields
 cannot consume a repair/recharge choice. Reports record the actual additional
-supplies separately. Encounter timings, arrival victory and existing operation
-records remain unchanged.
+supplies separately.
 
 The demo adds detailed convoy hull silhouettes, a procedural planetary backdrop,
-phase-specific presentation, and an original adaptive Web Audio score. Music and
+phase-specific presentation, and an original adaptive Web Audio score. An arrival
+with losses has its own quieter score and descending three-note cue. Music and
 effects have separate levels in Menu; mute and reduced-motion preferences persist
 under `gateward.preferences.v1`. Browser audio begins only after user input and
 stops on pause, focus loss, hidden document, or teardown. Sound settings remain
@@ -169,9 +177,9 @@ feel, speaker balance, subjective balance, or sustained performance on target PC
 
 Passage reports also retain **weapon activity** for every gun fitted at departure,
 including weapons later destroyed. Projectile weapons report actual shots fired;
-beams report seconds firing. Idle guns are called out so the player can inspect
-range, firing arc and platform position. These are engagement measurements, not
-damage or kill attribution. The default Forward spearhead doctrine brings the
+beams report seconds firing. Guns that never fire record what kept them idle,
+including time with no contact in range and time with nearby contacts outside
+their firing arc. The default Forward spearhead doctrine brings the
 opening guns into action early; Balanced, Broadside and Custom remain available.
 
 ## Standalone development and hosting

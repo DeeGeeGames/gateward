@@ -1,4 +1,4 @@
-export type AudioScene = 'fitting' | 'transit' | 'tension' | 'victory' | 'defeat';
+export type AudioScene = 'fitting' | 'transit' | 'tension' | 'victory' | 'arrivalWithLosses' | 'defeat';
 
 interface Score {
 	readonly tempo: number;
@@ -18,6 +18,7 @@ export const SCORES: Record<AudioScene, Score> = {
 	transit: { tempo: 88, chords: HOME, melody: [69, null, 76, null, 72, null, 71, null, 64, null, 67, 69, null, 72, 71, null], pulse: true, color: 1400 },
 	tension: { tempo: 104, chords: DANGER, melody: [69, null, 71, 72, null, 76, 72, null, 71, null, 67, null, 64, null, 67, 71], pulse: true, color: 1900 },
 	victory: { tempo: 68, chords: ARRIVAL, melody: [76, null, null, 79, null, null, 76, null, 72, null, null, null, 74, null, 76, null], pulse: false, color: 1300 },
+	arrivalWithLosses: { tempo: 60, chords: [[48, 55, 60, 62], [41, 48, 57, 64], [45, 52, 57, 60], [48, 55, 62, 64]], melody: [67, null, null, null, null, 64, null, null, null, 62, null, null, null, 60, null, null], pulse: false, color: 820 },
 	defeat: { tempo: 52, chords: [[45, 52, 59], [41, 48, 55], [40, 47, 55], [45, 52, 57]], melody: [69, null, null, null, 67, null, null, null, 64, null, null, null, 59, null, null, null], pulse: false, color: 520 },
 };
 

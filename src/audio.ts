@@ -175,6 +175,9 @@ export const createAudio = function () {
 		if (event === 'depart' || event === 'won') {
 			for (const [index, midi] of [57, 64, 69, 72, 76].entries()) tone(pitch(midi), pitch(midi), 1.2, 0.08, 'sine', index * 0.16);
 		}
+		if (event === 'arrivalWithLosses') {
+			for (const [index, midi] of [64, 62, 60].entries()) tone(pitch(midi), pitch(midi), 0.95, 0.04, 'sine', index * 0.23);
+		}
 		if (event === 'lost') { burst(400, 1.5, 0.22); tone(110, 27.5, 1.9, 0.17); }
 		if (event === 'order') { tone(660, 880, 0.075, 0.045); tone(1320, 1320, 0.055, 0.018, 'sine', 0.045); }
 	};

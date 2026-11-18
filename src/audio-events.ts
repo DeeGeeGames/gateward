@@ -1,7 +1,8 @@
 import type { State } from './simulation';
 import { canAcquire } from './sensors';
+import { operationOutcome } from './trial-summary';
 
-export type Sound = 'beam' | 'flak' | 'rail' | 'missile' | 'escort' | 'impact' | 'explosion' | 'damage' | 'contact' | 'clear' | 'pulse' | 'repair' | 'depart' | 'won' | 'lost' | 'order';
+export type Sound = 'beam' | 'flak' | 'rail' | 'missile' | 'escort' | 'impact' | 'explosion' | 'damage' | 'contact' | 'clear' | 'pulse' | 'repair' | 'depart' | 'won' | 'arrivalWithLosses' | 'lost' | 'order';
 
 // Observe presentation state after every fixed step; never mutate gameplay or queue audio.
 export const createSoundObserver = function () {
@@ -37,7 +38,8 @@ export const createSoundObserver = function () {
 		if (state.repairCooldown > before.repair) sounds.add('repair');
 		if (state.status !== before.status) {
 			if (state.status === 'running') sounds.add('depart');
-			if (state.status === 'won' || state.status === 'lost') sounds.add(state.status);
+			const outcome = operationOutcome(state);
+			if (outcome) sounds.add(outcome === 'intact' ? 'won' : outcome === 'arkDestroyed' ? 'lost' : 'arrivalWithLosses');
 		}
 		return [...sounds];
 	};
