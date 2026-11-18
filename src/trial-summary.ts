@@ -1,4 +1,4 @@
-import { operationFor, passagesFor, PASSAGE_SECONDS, WAVE_COUNT, type State } from './simulation';
+import { operationFor, passageHadLosses, passagesFor, PASSAGE_SECONDS, WAVE_COUNT, type PassageReport, type State } from './simulation';
 import { effectiveOutputs } from './systems';
 
 export interface SystemsSummary {
@@ -27,8 +27,33 @@ export const systemsSummary = function (state: State): SystemsSummary {
 	};
 };
 
+export type OperationOutcome = 'intact' | 'arrivalWithLosses' | 'arkDestroyed';
+
+export const describeCrossingLosses = function (reports: readonly PassageReport[]): string {
+	const disabled = reports.flatMap(function (report) { return report.disabledPlatforms; });
+	const ships = new Set(disabled).size;
+	const losses: string[] = [];
+	if (ships > 0) {
+		const count = `${ships} convoy ${ships === 1 ? 'ship' : 'ships'} disabled`;
+		losses.push(disabled.length > ships ? `${count} (${disabled.length} disablements)` : count);
+	}
+	const escortsLost = reports.reduce(function (sum, report) { return sum + report.escortsLost; }, 0);
+	if (escortsLost > 0) losses.push(`${escortsLost} escort craft lost`);
+	return losses.join(' · ');
+};
+
+export const operationOutcome = function (state: State): OperationOutcome | undefined {
+	if (state.status === 'lost') return 'arkDestroyed';
+	if (state.status !== 'won') return undefined;
+	return state.convoy?.reports?.some(passageHadLosses) ? 'arrivalWithLosses' : 'intact';
+};
+
 export const systemsResultMessage = function (state: State): string {
-	if (state.status !== 'won' && state.status !== 'lost') return '';
+	const outcome = operationOutcome(state);
+	if (!outcome) return '';
 	const destination = state.convoy ? operationFor(state).destination : 'Kepler';
-	return state.status === 'won' ? `${destination} reached. The ark broke through; surviving hostiles do not block arrival.` : `Ark destroyed before reaching ${destination}. Review shields, coverage and repair timing.`;
+	const disablements = describeCrossingLosses(state.convoy?.reports ?? []);
+	if (outcome === 'arkDestroyed') return `Ark destroyed before reaching ${destination}.${disablements ? ` Crossing losses · ${disablements}.` : ''} Review shields, coverage and repair timing.`;
+	const arrival = disablements ? `Crossing losses · ${disablements}.` : state.convoy ? 'All convoy ships remained operational.' : '';
+	return `${destination} reached. ${arrival ? `${arrival} ` : ''}The ark can reach the gate with surviving hostiles still in the area.`;
 };

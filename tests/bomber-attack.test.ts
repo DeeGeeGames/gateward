@@ -1,7 +1,7 @@
 import { tactical } from '../src/combat-scale';
 import { describe, expect, test } from 'bun:test';
 import { BOMBER_ATTACK, createState, deploy, ENEMIES, pulse, step, type State } from '../src/simulation';
-import { bomberCue, placeBomberCue } from '../src/bomber-cue';
+import { bomberCue, defenseHint, placeBomberCue } from '../src/bomber-cue';
 
 const setup = function () {
 	const state = createState();
@@ -23,9 +23,11 @@ describe('bomber response window', function () {
 		const state = setup(); step(state, 1 / 60);
 		expect(bomber(state).bomberAttack?.phase).toBe('windup');
 		expect(bomberCue(state, bomber(state))?.text).toBe('ARRAY SHOT · 2.0s');
+		expect(defenseHint(state)).toContain('once fired');
 		advance(state, BOMBER_ATTACK.windup - 1 / 60); expect(state.shots).toHaveLength(0);
 		step(state, 1 / 60); expect(state.shots).toHaveLength(1);
 		expect(bomberCue(state, bomber(state))?.text).toBe('ARRAY · FIRED');
+		expect(defenseHint(state)).toContain('Incoming rounds');
 		expect(bomber(state).cooldown).toBe(ENEMIES.bomber.reload);
 		advance(state, 0.4); expect(bomberCue(state, bomber(state))?.text).toBe('ARRAY · RECHARGING');
 	});
@@ -60,6 +62,7 @@ describe('bomber response window', function () {
 		const ignored = stationary(); const release = untilShot(ignored); advance(ignored, 2);
 		expect(ignored.systems.sensors.integrity).toBe(66); expect(ignored.hull).toBe(1166);
 		const cleared = stationary(); expect(untilShot(cleared)).toBe(release); expect(pulse(cleared)).toBe(true); advance(cleared, 2);
+		expect(defenseHint(cleared)).toBeUndefined();
 		expect(cleared.systems.sensors.integrity).toBe(100); expect(cleared.hull).toBe(1200);
 		const protectedHull = stationary(); untilShot(protectedHull); protectedHull.aegisRemaining = 5; advance(protectedHull, 2);
 		expect(protectedHull.systems.sensors.integrity).toBe(66); expect(protectedHull.hull).toBeCloseTo(1193.2);
@@ -86,7 +89,7 @@ describe('bomber response window', function () {
 	test('cues expose only living classified bombers in a running game', function () {
 		const state = setup(); step(state, 1 / 60); const enemy = bomber(state);
 		expect(bomberCue(state, enemy)).toBeDefined(); state.systems.sensors.integrity = 49;
-		expect(bomberCue(state, enemy)).toBeUndefined(); enemy.y = -tactical(100);
+		expect(bomberCue(state, enemy)).toBeUndefined(); expect(defenseHint(state)).toBeUndefined(); enemy.y = -tactical(100);
 		expect(bomberCue(state, enemy)).toBeDefined(); state.systems.sensors.integrity = 0;
 		expect(bomberCue(state, enemy)).toBeUndefined(); state.systems.sensors.integrity = 100;
 		enemy.hp = 0; expect(bomberCue(state, enemy)).toBeUndefined(); enemy.hp = 95; state.status = 'lost';

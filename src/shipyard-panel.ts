@@ -43,6 +43,11 @@ export const createShipyardPanel = function (root: HTMLElement, getState: () => 
 	return {
 		select: function (slot: Formation) { selected = slot; position.value = slot; },
 		selected: function () { return selected; },
+		focusMove: function (slot: Formation) {
+			selected = slot; position.value = slot; move.value = slot;
+			moveLabel.hidden = false; move.disabled = false;
+			move.focus();
+		},
 		update: function () {
 			const state = getState(); const platform = state.convoy?.platforms.find(function (p) { return p.slot === selected; });
 			const enabled = active() && state.status === 'fitting';

@@ -3,12 +3,30 @@ import type { EnemyKind } from './simulation';
 export interface Passage {
 	readonly name: string;
 	readonly scout: string;
+	readonly scoutCue?: string;
 	readonly threats: readonly { readonly kind: EnemyKind; readonly x: number; readonly y: number }[];
 }
 
 export const KEPLER_PASSAGES = [
-	{ name: 'Port battery', scout: 'Armor and fighters form ahead along the route. Cover the bow on approach and port as they fall alongside.', threats: [{ kind: 'armored', x: 900, y: -360 }, { kind: 'raider', x: 1100, y: -180 }, { kind: 'raider', x: 1100, y: 180 }, { kind: 'raider', x: 1300, y: 0 }] },
-	{ name: 'Crossfire', scout: 'Two armored ships approach on starboard; three bombers attack from port. Protect both flanks and fit forward ships to meet the approach.', threats: [{ kind: 'armored', x: 900, y: 360 }, { kind: 'armored', x: 1150, y: 420 }, { kind: 'bomber', x: 1000, y: -260 }, { kind: 'bomber', x: 1300, y: -340 }, { kind: 'bomber', x: 850, y: -420 }] },
+	{
+		name: 'Port battery',
+		scoutCue: 'Check forward and flank arcs.',
+		scout: 'Armor sits forward on port. Fighters screen the front and both flanks. Forward frigates can meet the screen early, while outward-facing guns on the flanks cover the wide fighters.',
+		threats: [
+			{ kind: 'armored', x: 950, y: -870 },
+			{ kind: 'raider', x: 1450, y: -640 }, { kind: 'raider', x: 1350, y: 770 }, { kind: 'raider', x: 880, y: 1010 },
+			{ kind: 'raider', x: 390, y: -1380 }, { kind: 'raider', x: 410, y: 1380 },
+		],
+	},
+	{
+		name: 'Crossfire',
+		scoutCue: 'Move a frigate to port or reinforce the ark.',
+		scout: 'Three bombers start wide on port and two armored ships cover starboard. Try moving a frigate to meet the bombers on port, or keep your formation and reinforce the ark’s broadsides.',
+		threats: [
+			{ kind: 'armored', x: 540, y: 1200 }, { kind: 'armored', x: 1180, y: 1100 },
+			{ kind: 'bomber', x: 520, y: -1400 }, { kind: 'bomber', x: 650, y: -1530 }, { kind: 'bomber', x: 850, y: -1480 },
+		],
+	},
 	{ name: 'Gate approach', scout: 'A flagship and armored escort screen four bombers and two fighters. Bombardment threatens both flanks. Spread your coverage, replace lost guns and survive the final approach.', threats: [{ kind: 'flagship', x: 1400, y: -420 }, { kind: 'raider', x: 950, y: 180 }, { kind: 'raider', x: 1150, y: -180 }, { kind: 'bomber', x: 1300, y: 340 }, { kind: 'bomber', x: 1050, y: -300 }, { kind: 'armored', x: 1100, y: 420 }, { kind: 'bomber', x: 900, y: 260 }, { kind: 'bomber', x: 1200, y: -180 }] },
 ] as const;
 

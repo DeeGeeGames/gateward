@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { applyDoctrine } from '../src/doctrines';
+import { passageTakeaways } from '../src/passage-report';
 import { build, createConvoyState, createState, launchPassage, PASSAGE_SECONDS, setAllocation, step, type State } from '../src/simulation';
 import { mountWorld, worldPoint } from '../src/space';
 
@@ -11,6 +13,23 @@ const finishPassage = function (state: State) {
 	state.convoy.elapsed = PASSAGE_SECONDS - 1 / 60;
 	step(state, 1 / 60);
 };
+
+test('debrief prioritizes the long weapons blackout over a brief arc blockage', function () {
+	const state = createConvoyState();
+	applyDoctrine(state, 'spearhead');
+	setAllocation(state, { engines: 4, weapons: 0, shields: 6 });
+	expect(launchPassage(state)).toBe(true);
+	advance(state, 40 * 60);
+	setAllocation(state, { engines: 4, weapons: 4, shields: 2 });
+	advance(state, 5 * 60 + 1);
+	const report = state.convoy?.reports?.at(-1);
+	if (!report) throw new Error('Expected a completed passage');
+	const idle = report.weaponActivity?.filter(function (gun) { return gun.shots === 0 && gun.beamSeconds === 0; }) ?? [];
+	const gun = idle.find(function (gun) { return gun.platform === 1; });
+	expect(gun?.idleSeconds?.unpowered).toBeCloseTo(40);
+	expect(gun?.idleSeconds?.arc).toBeGreaterThan(0);
+	expect(passageTakeaways(report, idle).find(function (advice) { return advice.startsWith('P2'); })).toContain('reactor power');
+});
 
 test('passage feedback distinguishes actual shots from loaded guns without a firing arc', function () {
 	const state = createConvoyState();
@@ -27,14 +46,23 @@ test('passage feedback distinguishes actual shots from loaded guns without a fir
 	const idle = state.convoy?.departure?.weaponActivity?.find(function (entry) { return entry.mount === 4; });
 	if (!active || !idle) throw new Error('Missing fitted weapon feedback');
 	expect(fired.size).toBeGreaterThan(0);
-	expect(active).toEqual({ mount: 0, weapon: 'flak', shots: fired.size, beamSeconds: 0 });
-	expect(idle).toEqual({ mount: 4, weapon: 'flak', shots: 0, beamSeconds: 0 });
+	expect(active).toMatchObject({ mount: 0, weapon: 'flak', shots: fired.size, beamSeconds: 0 });
+	expect(idle).toMatchObject({ mount: 4, weapon: 'flak', shots: 0, beamSeconds: 0 });
+	expect(idle.idleSeconds?.arc).toBeCloseTo(1);
+	expect(idle.idleSeconds?.range).toBeUndefined();
+	const distant = worldPoint(state, { x: -96, y: -3000 });
+	state.enemies = [{ ...distant, station: distant, id: 1000, kind: 'armored', hp: 10000, maxHp: 10000, cooldown: 999 }];
+	advance(state, 60);
+	expect(idle.idleSeconds?.range).toBeCloseTo(1);
 	finishPassage(state);
 	const report = state.convoy?.reports?.[0];
 	expect(report?.weaponActivity).toEqual([active, idle]);
+	expect(idle.idleSeconds?.noContacts).toBeCloseTo(1 / 60);
+	if (idle.idleSeconds) idle.idleSeconds.arc = 0;
 	expect(launchPassage(state)).toBe(true);
 	expect(state.convoy?.departure?.weaponActivity?.every(function (entry) { return entry.shots === 0 && entry.beamSeconds === 0; })).toBe(true);
 	expect(report?.weaponActivity?.[0]?.shots).toBe(fired.size);
+	expect(report?.weaponActivity?.[1]?.idleSeconds?.arc).toBeCloseTo(1);
 });
 
 test('beam feedback measures actual active simulation seconds and freezes without aim, power or focus', function () {
@@ -52,6 +80,7 @@ test('beam feedback measures actual active simulation seconds and freezes withou
 	expect(setAllocation(state, { engines: 4, weapons: 0, shields: 6 })).toBe(true);
 	advance(state, 30);
 	expect(activity?.beamSeconds).toBeCloseTo(1);
+	expect(activity?.idleSeconds?.unpowered).toBeCloseTo(0.5);
 	expect(setAllocation(state, { engines: 4, weapons: 4, shields: 2 })).toBe(true);
 	const enemy = state.enemies[0]; if (!enemy) throw new Error('Missing target');
 	enemy.y = 1500; enemy.station = { x: enemy.x, y: enemy.y };
@@ -77,6 +106,7 @@ test('destroyed platform weapons retain their activity in reports and disappear 
 	finishPassage(state);
 	const report = state.convoy?.reports?.[0];
 	expect(report?.weaponsLost).toBe(1);
+	expect(departureActivity.idleSeconds?.disabled).toBeCloseTo(1 / 60);
 	expect(report?.weaponActivity?.find(function (entry) { return entry.mount === 8; })).toEqual({ ...departureActivity, platform: 0, weapon: 'beam' });
 	const firedFor = departureActivity.beamSeconds;
 	departureActivity.beamSeconds = 0;

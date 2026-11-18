@@ -59,7 +59,11 @@ export const createControllerUI = function (root: HTMLElement, commands: Control
 		}) ?? [...root.querySelectorAll<HTMLElement>('#inspector')].find(visible) ?? root;
 	};
 	const controls = function () {
-		return [...scope().querySelectorAll<HTMLElement>('button, select, input[type="range"], summary, a[href]')].filter(function (node) {
+		const panel = scope();
+		const items = [...panel.querySelectorAll<HTMLElement>('button, select, input[type="range"], summary, a[href]')];
+		// The passage action stays beside the open ship drawer.
+		if (panel.id === 'inspector') items.push(...root.querySelectorAll<HTMLElement>('#depart, #cruise'));
+		return items.filter(function (node) {
 			return !(node instanceof HTMLButtonElement || node instanceof HTMLSelectElement || node instanceof HTMLInputElement ? node.disabled : false) && visible(node);
 		});
 	};

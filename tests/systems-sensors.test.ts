@@ -65,7 +65,7 @@ describe('range-limited sensor intelligence', function () {
 		advance(state, 0.3);
 		expect(contactWarning(state)).not.toContain('bomber');
 		enemy.y = tactical(600);
-		expect(contactWarning(state)).toBe('STARBOARD · 1 bomber · in range');
+		expect(contactWarning(state)).toBe('STARBOARD · 1 bomber · identified');
 	});
 	test('the core game uses sensors without an opt-in', function () {
 		{ const state = createState();

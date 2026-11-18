@@ -1,8 +1,9 @@
 import { DOCTRINE_IDS, DOCTRINES, type DoctrineId } from './doctrines';
-import { OPERATION_IDS, OPERATIONS, type OperationId } from './operations';
+import { OPERATION_IDS, OPERATIONS, type OperationId, type Passage } from './operations';
 import { operationRecord } from './operation-record';
 import { chooseRefitSupport, REFIT_SUPPORT_IDS, REFIT_SUPPORT, refitSupportReason } from './refit-support';
-import { passagesFor, type State } from './simulation';
+import { SCOUT_MARKERS } from './scout-overlay';
+import { passagesFor, type EnemyKind, type State } from './simulation';
 
 const node = function (id: string): HTMLElement {
 	const element = document.getElementById(id);
@@ -58,38 +59,49 @@ export const createDemoUI = function (getState: () => State, chooseOperation: (i
 		support.append(control); return { id, control, description };
 	});
 	let scoutKey = '';
+	let routeKey = '';
 	let readinessKey = '';
+	const battlefieldScout = node('battlefield-scout');
+	const scoutSummary = node('scout-summary');
+	const scoutKeyItems = node('scout-key');
+	const scoutDetail = node('passage-scout');
 	const update = function () {
 		const state = getState();
-		const passages = passagesFor(state);
+		const passages: readonly Passage[] = passagesFor(state);
 		const index = Math.min(passages.length - 1, state.status === 'fitting' ? state.wave : state.wave - 1);
 		const passage = passages[index];
 		const fitted = state.mounts.filter(function (mount) { return mount.weapon; }).length;
 		const emptyShips = state.convoy?.platforms.filter(function (platform) { return !state.mounts.some(function (mount) { return mount.platform === platform.id && mount.weapon; }); }).length ?? 0;
 		const readiness = `${fitted} GUNS FITTED / ${state.convoy?.platforms.length ?? 0} SHIPS${emptyShips ? ` / ${emptyShips} UNARMED` : ''}`;
 		if (readiness !== readinessKey) { node('build-readiness').textContent = readiness; readinessKey = readiness; }
-		const key = `${state.convoy?.operation}/${index}/${state.status === 'fitting'}`;
-		if (key !== scoutKey && passage) {
-			scoutKey = key;
+		const key = `${state.convoy?.operation}/${index}`;
+		if (key !== routeKey) {
+			routeKey = key;
 			const stages = passages.map(function (stage, stageIndex) {
 				const entry = document.createElement('span'); entry.title = `${stageIndex + 1}. ${stage.name}`;
 				entry.dataset['stage'] = stageIndex < index ? 'complete' : stageIndex === index ? 'current' : 'future';
 				return entry;
 			});
 			node('route-stages').replaceChildren(...stages);
-			const names = { raider: 'Fighters', bomber: 'Bombers', armored: 'Armored', flagship: 'Flagships', carrier: 'Carriers' };
-			const groups = new Map<string, number>();
-			for (const threat of passage.threats) groups.set(names[threat.kind], (groups.get(names[threat.kind]) ?? 0) + 1);
-			const caption = [...groups].map(function ([kind, count]) { return `${count} ${kind}`; }).join(' · ');
-			node('scout-summary').textContent = `Scout: ${caption}`;
-			// The diagram uses the authored approach, not combat sensors or live hidden positions.
-			const symbols = passage.threats.map(function (threat) {
-				const x = 160 + threat.y / 5.4; const y = 83 - (threat.x - 750) / 19;
-				return threat.kind === 'raider' ? `<path d="M${x},${y - 4}l4,7h-8Z" fill="#e5b982"/>` : `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" transform="rotate(45 ${x} ${y})" fill="${threat.kind === 'bomber' ? '#ed9981' : '#e5b982'}"/>`;
-			}).join('');
-			const diagram = node('scout-diagram');
-			diagram.innerHTML = `<svg viewBox="0 0 320 112" role="img" aria-label="Scouted approach: ${caption}. Port is left, starboard is right."><path d="M160 100V14M96 100V14M224 100V14" stroke="#263e48" stroke-dasharray="3 6"/><path d="M151 99l9-12 9 12Z" fill="#b5e4d1"/><text x="12" y="18" fill="#98adb8" font-size="9" font-family="monospace">PORT</text><text x="247" y="18" fill="#98adb8" font-size="9" font-family="monospace">STARBOARD</text>${symbols}<text x="10" y="102" fill="#7f9ba7" font-size="8" font-family="monospace">APPROACH / SCOUTED</text></svg>`;
-			const counts = document.createElement('p'); counts.textContent = caption; diagram.append(counts);
+		}
+		const showScout = state.status === 'fitting' && !!state.convoy && !!passage;
+		battlefieldScout.hidden = scoutDetail.hidden = !showScout;
+		if (showScout && passage && key !== scoutKey) {
+			scoutKey = key;
+			const groups = new Map<EnemyKind, number>();
+			for (const threat of passage.threats) groups.set(threat.kind, (groups.get(threat.kind) ?? 0) + 1);
+			scoutSummary.textContent = passage.scoutCue ?? 'Compare scouted positions with gun arcs.';
+			const keys = Array.from(groups, function ([kind, count]) {
+				const item = document.createElement('span');
+				const marker = SCOUT_MARKERS[kind];
+				const symbol = document.createElement('span');
+				symbol.textContent = marker.symbol;
+				symbol.style.color = marker.color;
+				symbol.setAttribute('aria-hidden', 'true');
+				item.append(symbol, ` ${count} ${count === 1 ? marker.one : marker.many}`);
+				return item;
+			});
+			scoutKeyItems.replaceChildren('Starts', ...keys);
 		}
 		const report = state.convoy?.reports?.[state.wave - 1];
 		node('last-report').hidden = state.status !== 'fitting' || !report;
